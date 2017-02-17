@@ -1,0 +1,299 @@
+#include "Image/Canvas.h"
+#include <math.h>
+
+unsigned int width = 512;
+unsigned int height = 512;
+double length = 0.5;
+double scale = 0.1;//need 3d calculation
+
+float vppos_x = 0;
+float vppos_y = 0;//1 for the top -1 for the bottom
+//fprintf(stderr, "%9.6f\n", vppos_y);
+bool leftButtonPressed = false;
+float linelength = 0;
+int timercount = 0;
+bool rotateCW = true; //Whether we're rotating in the clockwise direction
+float rotateAngle = 0; //The angle the square currently rotated
+float rotateSpeed = 0.1; //The speed of the rotation
+Canvas canvas;
+
+struct Vector4
+{
+	float x, y, z, w;
+	Vector4() { x = y = z = 0; w = 1; }
+	Vector4(float x_in, float y_in,float z_in)
+	{
+		x = x_in;
+		y = y_in;
+		z = z_in;
+		w = 1;
+	}
+	Vector4(float x_in, float y_in, float z_in, float w_in)
+	{
+		x = x_in;
+		y = y_in;
+		z = z_in;
+		w = w_in;
+	}
+
+};
+Vector4 CrossProduct(Vector4 a, Vector4 b) { 
+	return Vector4( a.y*b.z-a.z*b.y,
+					a.z*b.x-a.x*b.z,
+					a.x*b.y-a.y*b.x,
+					1);
+}
+Vector4 Minus(Vector4 a, Vector4 b) { return Vector4(a.x - b.x, a.y - b.y, a.z - b.z); }
+Vector4 Normalize(Vector4 a)
+{
+	float length = a.x * a.x + a.y * a.y + a.z * a.z;
+	length = sqrt(length);
+	return Vector4(a.x / length, a.y / length, a.z / length);
+}
+Vector4 Reverse(Vector4 a){
+	return Vector4(-a.x, -a.y, -a.z);
+}
+struct Matrix{
+	float a, b, c, d,
+		e, f, g, h,
+		i, j, k, l, 
+		m, n, o, p;
+	Matrix(float a_in, float b_in, float c_in, 
+		float e_in, float f_in, float g_in,
+		float i_in, float j_in, float k_in){
+
+		a = a_in; b = b_in; c = c_in;
+		e = e_in; f = f_in; g = g_in;
+		i = i_in; j = j_in; k = k_in;
+		d = h = l = 0; 
+		p = 1;
+	}
+};
+std::vector<Vector4> vecBuffer;
+
+void MouseMove(double x, double y)
+{
+   //the pointer has moved
+   vppos_x = (float)(x) / 256 - 1;
+   vppos_y = 1 - (float)(y) / 256;
+}
+
+void MouseButton(MouseButtons mouseButton, bool press)
+{
+    //What to do with the keys?
+    if (mouseButton == LeftButton)
+    {
+        if (press == true) leftButtonPressed = true;
+        else leftButtonPressed = false;
+    }
+}
+
+void KeyPress(char keychar)
+{
+    //A key is pressed! print a message
+	if (keychar == ' ') rotateCW = !rotateCW;
+    fprintf(stderr, "The \"%c\" key is pressed!\n", keychar);
+}
+
+void DrawCross(float x_center, float y_center)
+{
+    canvas.AddLine(x_center - linelength,
+                   y_center - linelength,
+                   x_center + linelength,
+                   y_center + linelength);
+
+    canvas.AddLine(x_center - linelength,
+                   y_center + linelength,
+                   x_center + linelength,
+                   y_center - linelength);
+}
+
+void DrawSquare(float x_center, float y_center)
+{
+    canvas.AddLine(x_center - linelength, y_center - linelength, x_center - linelength, y_center + linelength);
+    canvas.AddLine(x_center - linelength, y_center + linelength, x_center + linelength, y_center + linelength);
+    canvas.AddLine(x_center + linelength, y_center + linelength, x_center + linelength, y_center - linelength);
+    canvas.AddLine(x_center + linelength, y_center - linelength, x_center - linelength, y_center - linelength);
+}
+
+void OnPaint()
+{
+    canvas.Clear();
+    //DrawCross(vppos_x, vppos_y);
+	/*
+    if (leftButtonPressed == true)
+    {
+        DrawSquare(vppos_x, vppos_y);
+    }*/
+	
+	for (int i = 0; i < 4; ++i)
+	{ //rotate the vertices
+		Vector4 startPoint;
+		startPoint.x = vecBuffer[i].x;
+		startPoint.y = vecBuffer[i].y * cos(rotateAngle)
+			- vecBuffer[i].z * sin(rotateAngle);
+		startPoint.z = vecBuffer[i].y * sin(rotateAngle)
+			+ vecBuffer[i].z * cos(rotateAngle);
+		
+		Vector4 endPoint;
+		endPoint.x = vecBuffer[i + 1].x;
+		endPoint.y = vecBuffer[i + 1].y * cos(rotateAngle)
+			- vecBuffer[i + 1].z * sin(rotateAngle);
+		endPoint.z = vecBuffer[i + 1].y * sin(rotateAngle)
+			+ vecBuffer[i + 1].z * cos(rotateAngle);
+		canvas.AddLine(startPoint.x, startPoint.y, endPoint.x, endPoint.y);
+	}
+	for (int i = 5; i < 9; ++i)
+	{ //rotate the vertices
+		Vector4 startPoint;
+		startPoint.x = vecBuffer[i].x;
+		startPoint.y = vecBuffer[i].y * cos(rotateAngle)
+			- vecBuffer[i].z * sin(rotateAngle);
+		startPoint.z = vecBuffer[i].y * sin(rotateAngle)
+			+ vecBuffer[i].z * cos(rotateAngle);
+
+		Vector4 endPoint;
+		endPoint.x = vecBuffer[i + 1].x;
+		endPoint.y = vecBuffer[i + 1].y * cos(rotateAngle)
+			- vecBuffer[i + 1].z * sin(rotateAngle);
+		endPoint.z = vecBuffer[i + 1].y * sin(rotateAngle)
+			+ vecBuffer[i + 1].z * cos(rotateAngle);
+		canvas.AddLine(startPoint.x, startPoint.y, endPoint.x, endPoint.y);
+	}
+	for (int i = 10; i < 16; i+=2)//i<16 not 18
+	{ //rotate the vertices
+		Vector4 startPoint;
+		startPoint.x = vecBuffer[i].x;
+		startPoint.y = vecBuffer[i].y * cos(rotateAngle)
+			- vecBuffer[i].z * sin(rotateAngle);
+		startPoint.z = vecBuffer[i].y * sin(rotateAngle)
+			+ vecBuffer[i].z * cos(rotateAngle);
+
+		Vector4 endPoint;
+		endPoint.x = vecBuffer[i + 1].x;
+		endPoint.y = vecBuffer[i + 1].y * cos(rotateAngle)
+			- vecBuffer[i + 1].z * sin(rotateAngle);
+		endPoint.z = vecBuffer[i + 1].y * sin(rotateAngle)
+			+ vecBuffer[i + 1].z * cos(rotateAngle);
+		canvas.AddLine(startPoint.x, startPoint.y, endPoint.x, endPoint.y);
+	}
+	
+}
+
+void OnTimer()
+{
+	if (leftButtonPressed == true)
+	{
+		if (leftButtonPressed == true)
+		{
+			float r_vppos_y = vppos_y;
+			if (rotateCW) rotateAngle -= r_vppos_y;
+			else rotateAngle += vppos_y;
+			//DrawSquare(vppos_x, vppos_y);
+		}
+	}
+	
+    linelength = (float)(sin(timercount / 10.0) * 0.1 + 0.1);
+    timercount ++;
+	/*if (leftButtonPressed == true)
+	{
+		float r_vppos_y = vppos_y;
+		if (rotateCW) rotateAngle -= r_vppos_y;
+		else rotateAngle += vppos_y;
+		//DrawSquare(vppos_x, vppos_y);
+	}*/
+}
+
+int main(int, char **){
+	//Initialize the vertex coordinate (0,0,0) for the centre
+	
+	vecBuffer.push_back(Vector4(length, length,-length));
+	vecBuffer.push_back(Vector4(length, -length, -length));
+	vecBuffer.push_back(Vector4(-length, -length, -length));
+	vecBuffer.push_back(Vector4(-length, length, -length));
+	vecBuffer.push_back(Vector4(length, length, -length));
+
+	vecBuffer.push_back(Vector4(length, length, length));
+	vecBuffer.push_back(Vector4(length, -length, length));
+	vecBuffer.push_back(Vector4(-length, -length, length));
+	vecBuffer.push_back(Vector4(-length, length, length));
+	vecBuffer.push_back(Vector4(length, length, length));
+
+	vecBuffer.push_back(Vector4(length, length, -length));
+	vecBuffer.push_back(Vector4(length, length, length));
+	vecBuffer.push_back(Vector4(length, -length, -length));
+	vecBuffer.push_back(Vector4(length, -length, length));
+	vecBuffer.push_back(Vector4(-length, -length, -length));
+	vecBuffer.push_back(Vector4(-length, -length, length));
+	vecBuffer.push_back(Vector4(-length, length, -length));
+	vecBuffer.push_back(Vector4(length, length, length));
+	
+    //Link the call backs
+	Vector4 camera = Vector4(0,0,-200);
+	Vector4 origin = Vector4();
+
+	Vector4 gaze = Minus(origin, camera);
+	Vector4 W = Normalize(gaze);
+	W = Reverse(W);
+
+	Vector4 t = Vector4(0,-1, 0);
+	Vector4 U = CrossProduct(t, W);
+	U = Normalize(U);
+
+	Vector4 V = CrossProduct(W, U);
+	V = Normalize(V);
+
+	Matrix mv = Matrix(U.x, U.y, U.z,
+						V.x, V.y, V.z,
+						W.x, W.y, W.z);
+	//fprintf(stderr, "%.1f, %.1f, %.1f, %.1f\n", W.x, W.y, W.z, W.w);
+
+
+	//fprintf(stderr, "%.1f, %.1f, %.1f, %.1f\n", gaze.x, gaze.y, gaze.z, gaze.w);
+
+
+	//Vector4 temp = CrossProduct(Vector4(2,3,4,1),Vector4(5,6,7,1));
+
+
+    canvas.SetMouseMove(MouseMove);
+    canvas.SetMouseButton(MouseButton);
+    canvas.SetKeyPress(KeyPress);
+    canvas.SetOnPaint(OnPaint);
+    canvas.SetTimer(0.1, OnTimer);//trigger OnTimer every 0.1 second
+    //Show Window
+    canvas.Show(width, height, "Canvas Demo");
+    return 0;
+}
+
+
+/* The ray tracing demo for Image class
+#include "Image.h"
+#include "raytrace\raytrace.h"
+
+int main(int, char**){
+
+    Image image(512, 512);
+
+        for (int i = 0; i < 512; ++ i)
+        {
+            for (int j = 0; j < 512; ++ j)
+            {
+                Pixel px;
+                //Set the pixel with some colour....
+                px.R = i / 2;
+                px.G = j / 2;
+                px.B = (i + j) / 4;
+                px.A = 255;
+
+                image(i, j) = px;
+            }
+        }
+
+    image.show("GLFW3+Libpng Image Window Demo");
+    image.save("demo.png");
+
+
+    Image raytraceImage(512, 512);
+    RayTraceSphere(&raytraceImage);
+    raytraceImage.show("Ray Tracing Sphere Demo");
+} */
